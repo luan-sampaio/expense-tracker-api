@@ -27,6 +27,19 @@ ROOT_URLCONF = "core.urls"
 
 WSGI_APPLICATION = "core.wsgi.application"
 
+TEMPLATES = [
+    {
+        "BACKEND": "django.template.backends.django.DjangoTemplates",
+        "DIRS": [],
+        "APP_DIRS": True,
+        "OPTIONS": {
+            "context_processors": [
+                "django.template.context_processors.request",
+            ],
+        },
+    },
+]
+
 DATABASES = {
     "default": dj_database_url.config(
         default=config("DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}"),
