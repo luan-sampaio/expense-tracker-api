@@ -30,7 +30,7 @@ def upsert_transaction(request, payload: TransactionIn):
 @router.put("/{transaction_id}", response=TransactionOut)
 def update_transaction(request, transaction_id: str, payload: TransactionIn):
     transaction = get_object_or_404(Transaction, id=transaction_id)
-    for field, value in payload.dict(exclude={"id"}).items():
+    for field, value in payload.model_dump(exclude={"id"}).items():
         setattr(transaction, field, value)
     transaction.save()
     return transaction
