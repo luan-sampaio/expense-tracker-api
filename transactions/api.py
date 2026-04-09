@@ -2,7 +2,7 @@ from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from .models import Transaction
-from .schemas import TransactionIn, TransactionOut
+from .schemas import ErrorOut, TransactionIn, TransactionOut
 
 router = Router()
 
@@ -12,19 +12,20 @@ def list_transactions(request):
     return Transaction.objects.all()
 
 
-@router.post("/", response=TransactionOut)
-def upsert_transaction(request, payload: TransactionIn):
-    transaction, _ = Transaction.objects.update_or_create(
+@router.post("/", response={201: TransactionOut, 409: ErrorOut})
+def create_transaction(request, payload: TransactionIn):
+    if Transaction.objects.filter(id=payload.id).exists():
+        return 409, {"message": "Transaction with this id already exists."}
+
+    transaction = Transaction.objects.create(
         id=payload.id,
-        defaults={
-            "amount": payload.amount,
-            "date": payload.date,
-            "category": payload.category,
-            "type": payload.type,
-            "description": payload.description,
-        },
+        amount=payload.amount,
+        date=payload.date,
+        category=payload.category,
+        type=payload.type,
+        description=payload.description,
     )
-    return transaction
+    return 201, transaction
 
 
 @router.put("/{transaction_id}", response=TransactionOut)

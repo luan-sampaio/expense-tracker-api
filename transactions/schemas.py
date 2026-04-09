@@ -1,24 +1,27 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Literal
 
 from ninja import Schema
 
 
-class TransactionIn(Schema):
-    id: str
+class TransactionBase(Schema):
     amount: Decimal
     date: datetime
     category: str
-    type: str
+    type: Literal["income", "expense"]
     description: str = ""
 
 
-class TransactionOut(Schema):
+class TransactionIn(TransactionBase):
     id: str
-    amount: Decimal
-    date: datetime
-    category: str
-    type: str
-    description: str
+
+
+class TransactionOut(TransactionBase):
+    id: str
     created_at: datetime
     updated_at: datetime
+
+
+class ErrorOut(Schema):
+    message: str
