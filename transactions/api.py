@@ -1,8 +1,15 @@
+from django.db import transaction as db_transaction
 from django.shortcuts import get_object_or_404
 from ninja import Router
 
 from .models import Transaction
-from .schemas import ErrorOut, TransactionIn, TransactionOut
+from .schemas import (
+    ErrorOut,
+    TransactionIn,
+    TransactionOut,
+    TransactionSyncIn,
+    TransactionSyncOut,
+)
 
 router = Router()
 
@@ -26,6 +33,54 @@ def create_transaction(request, payload: TransactionIn):
         description=payload.description,
     )
     return 201, transaction
+
+
+@router.post("/sync", response=TransactionSyncOut)
+def sync_transactions(request, payload: TransactionSyncIn):
+    results = []
+
+    with db_transaction.atomic():
+        for operation in payload.operations:
+            transaction_id = operation.transaction_id
+            if operation.transaction:
+                transaction_id = operation.transaction.id
+
+            result = {
+                "operation": operation.operation,
+                "transaction_id": transaction_id,
+                "client_operation_id": operation.client_operation_id,
+                "status": "applied",
+                "message": "",
+            }
+
+            if operation.operation in {"add", "update"}:
+                if operation.transaction is None:
+                    result["status"] = "failed"
+                    result["message"] = "Transaction payload is required for add/update operations."
+                    results.append(result)
+                    continue
+
+                values = operation.transaction.model_dump(exclude={"id"})
+                Transaction.objects.update_or_create(
+                    id=operation.transaction.id,
+                    defaults=values,
+                )
+
+            if operation.operation == "remove":
+                if not transaction_id:
+                    result["status"] = "failed"
+                    result["message"] = "transaction_id is required for remove operations."
+                    results.append(result)
+                    continue
+
+                Transaction.objects.filter(id=transaction_id).delete()
+
+            results.append(result)
+
+    return {
+        "results": results,
+        "transactions": Transaction.objects.all(),
+    }
 
 
 @router.put("/{transaction_id}", response=TransactionOut)
