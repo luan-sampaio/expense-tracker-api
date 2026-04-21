@@ -29,6 +29,7 @@ build/
 .eggs/
 
 # IDEs
+.codex
 .vscode/
 .idea/
 *.swp
