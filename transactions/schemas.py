@@ -7,6 +7,8 @@ from pydantic import Field, field_validator, model_validator
 
 
 MAX_DESCRIPTION_LENGTH = 255
+DEFAULT_PAGE_LIMIT = 20
+MAX_PAGE_LIMIT = 100
 
 EXPENSE_CATEGORIES = {
     "food",
@@ -87,11 +89,22 @@ class TransactionOut(TransactionBase):
     updated_at: datetime
 
 
+class TransactionListOut(Schema):
+    count: int
+    limit: int
+    offset: int
+    next_offset: int | None = None
+    previous_offset: int | None = None
+    results: list[TransactionOut]
+
+
 class TransactionFilters(Schema):
     month: str | None = None
     type: Literal["income", "expense"] | None = None
     category: str | None = None
     search: str | None = None
+    limit: int = DEFAULT_PAGE_LIMIT
+    offset: int = 0
 
     @field_validator("month")
     @classmethod
@@ -127,6 +140,22 @@ class TransactionFilters(Schema):
 
         search = search.strip()
         return search or None
+
+    @field_validator("limit")
+    @classmethod
+    def validate_limit(cls, limit):
+        if limit < 1:
+            raise ValueError("O limite deve ser maior que zero.")
+        if limit > MAX_PAGE_LIMIT:
+            raise ValueError(f"O limite máximo é {MAX_PAGE_LIMIT}.")
+        return limit
+
+    @field_validator("offset")
+    @classmethod
+    def validate_offset(cls, offset):
+        if offset < 0:
+            raise ValueError("O offset não pode ser negativo.")
+        return offset
 
 
 class ErrorOut(Schema):

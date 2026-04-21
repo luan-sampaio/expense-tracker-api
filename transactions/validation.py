@@ -4,6 +4,8 @@ FIELD_MESSAGES = {
     "date": "Informe uma data válida.",
     "description": "Informe uma descrição para a transação.",
     "id": "Informe o identificador da transação.",
+    "limit": "Informe um limite válido.",
+    "offset": "Informe um offset válido.",
     "operation": "Escolha uma operação válida.",
     "transaction": "Informe os dados da transação.",
     "transaction_id": "Informe o identificador da transação.",
@@ -48,6 +50,9 @@ def get_validation_field(error, message):
 
     if "mês" in message:
         return "month"
+
+    if "limite" in message:
+        return "limit"
 
     return "non_field_errors"
 

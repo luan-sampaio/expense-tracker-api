@@ -13,6 +13,7 @@ from .schemas import (
     ErrorOut,
     TransactionFilters,
     TransactionIn,
+    TransactionListOut,
     TransactionOut,
     TransactionSyncIn,
     TransactionSyncOut,
@@ -84,7 +85,7 @@ def save_operation_log(operation, transaction_id, payload_hash, result):
     return log
 
 
-@router.get("/", response=list[TransactionOut])
+@router.get("/", response=TransactionListOut)
 def list_transactions(request, filters: Query[TransactionFilters]):
     queryset = Transaction.objects.all()
 
@@ -104,7 +105,21 @@ def list_transactions(request, filters: Query[TransactionFilters]):
             | Q(category__icontains=filters.search)
         )
 
-    return queryset
+    count = queryset.count()
+    limit = filters.limit
+    offset = filters.offset
+    results = list(queryset[offset : offset + limit])
+    next_offset = offset + limit if offset + limit < count else None
+    previous_offset = max(offset - limit, 0) if offset > 0 else None
+
+    return {
+        "count": count,
+        "limit": limit,
+        "offset": offset,
+        "next_offset": next_offset,
+        "previous_offset": previous_offset,
+        "results": results,
+    }
 
 
 @router.post("/", response={201: TransactionOut, 409: ErrorOut})
