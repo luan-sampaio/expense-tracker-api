@@ -46,6 +46,9 @@ def get_validation_field(error, message):
     if "categoria" in message:
         return "category"
 
+    if "mês" in message:
+        return "month"
+
     return "non_field_errors"
 
 

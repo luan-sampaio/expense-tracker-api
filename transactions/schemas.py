@@ -87,6 +87,48 @@ class TransactionOut(TransactionBase):
     updated_at: datetime
 
 
+class TransactionFilters(Schema):
+    month: str | None = None
+    type: Literal["income", "expense"] | None = None
+    category: str | None = None
+    search: str | None = None
+
+    @field_validator("month")
+    @classmethod
+    def validate_month(cls, month):
+        if month is None:
+            return month
+
+        month = month.strip()
+        try:
+            datetime.strptime(month, "%Y-%m")
+        except ValueError:
+            raise ValueError("Informe o mês no formato AAAA-MM.")
+        return month
+
+    @field_validator("category")
+    @classmethod
+    def validate_filter_category(cls, category):
+        if category is None:
+            return category
+
+        category = category.strip().lower()
+        if not category:
+            return None
+        if category not in ACCEPTED_CATEGORIES:
+            raise ValueError("Escolha uma categoria válida.")
+        return category
+
+    @field_validator("search")
+    @classmethod
+    def validate_search(cls, search):
+        if search is None:
+            return search
+
+        search = search.strip()
+        return search or None
+
+
 class ErrorOut(Schema):
     message: str
     fields: dict[str, str] = Field(default_factory=dict)

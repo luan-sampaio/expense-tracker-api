@@ -2,14 +2,16 @@ import hashlib
 import json
 
 from django.db import transaction as db_transaction
+from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from ninja import Router
+from ninja import Query, Router
 from pydantic import ValidationError as PydanticValidationError
 
 from .models import SyncOperationLog, Transaction
 from .schemas import (
     ErrorOut,
+    TransactionFilters,
     TransactionIn,
     TransactionOut,
     TransactionSyncIn,
@@ -83,8 +85,26 @@ def save_operation_log(operation, transaction_id, payload_hash, result):
 
 
 @router.get("/", response=list[TransactionOut])
-def list_transactions(request):
-    return Transaction.objects.all()
+def list_transactions(request, filters: Query[TransactionFilters]):
+    queryset = Transaction.objects.all()
+
+    if filters.month:
+        year, month = [int(part) for part in filters.month.split("-")]
+        queryset = queryset.filter(date__year=year, date__month=month)
+
+    if filters.type:
+        queryset = queryset.filter(type=filters.type)
+
+    if filters.category:
+        queryset = queryset.filter(category=filters.category)
+
+    if filters.search:
+        queryset = queryset.filter(
+            Q(description__icontains=filters.search)
+            | Q(category__icontains=filters.search)
+        )
+
+    return queryset
 
 
 @router.post("/", response={201: TransactionOut, 409: ErrorOut})
