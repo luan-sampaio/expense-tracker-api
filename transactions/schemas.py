@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Literal
 
 from ninja import Schema
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 
 
 MAX_DESCRIPTION_LENGTH = 255
@@ -89,12 +89,12 @@ class TransactionOut(TransactionBase):
 
 class ErrorOut(Schema):
     message: str
-    fields: dict[str, str] = {}
+    fields: dict[str, str] = Field(default_factory=dict)
 
 
 class TransactionSyncOperationIn(Schema):
-    operation: Literal["add", "update", "remove"]
-    transaction: TransactionIn | None = None
+    operation: str
+    transaction: dict | None = None
     transaction_id: str | None = None
     client_operation_id: str | None = None
 
@@ -104,13 +104,16 @@ class TransactionSyncIn(Schema):
 
 
 class TransactionSyncOperationOut(Schema):
-    operation: Literal["add", "update", "remove"]
+    operation: str
     transaction_id: str | None = None
     client_operation_id: str | None = None
     status: Literal["applied", "failed"]
     message: str = ""
+    fields: dict[str, str] = Field(default_factory=dict)
+    server_synced_at: datetime
 
 
 class TransactionSyncOut(Schema):
     results: list[TransactionSyncOperationOut]
     transactions: list[TransactionOut]
+    server_synced_at: datetime

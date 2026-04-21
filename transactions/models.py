@@ -17,3 +17,21 @@ class Transaction(models.Model):
 
     class Meta:
         ordering = ["-date"]
+
+
+class SyncOperationLog(models.Model):
+    class Status(models.TextChoices):
+        APPLIED = "applied"
+        FAILED = "failed"
+
+    client_operation_id = models.CharField(max_length=100, unique=True)
+    operation = models.CharField(max_length=20)
+    transaction_id = models.CharField(max_length=20, blank=True, default="")
+    payload_hash = models.CharField(max_length=64)
+    status = models.CharField(max_length=10, choices=Status.choices)
+    message = models.CharField(max_length=255, blank=True, default="")
+    fields = models.JSONField(default=dict, blank=True)
+    server_synced_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-server_synced_at"]
