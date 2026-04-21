@@ -9,6 +9,70 @@ class TransactionSyncAPITests(TestCase):
     def setUp(self):
         self.client = Client()
 
+    def base_transaction_payload(self, **overrides):
+        payload = {
+            "id": "txn_validation",
+            "amount": "125.50",
+            "date": "2026-04-09T12:00:00Z",
+            "category": "food",
+            "type": "expense",
+            "description": "Almoco",
+        }
+        payload.update(overrides)
+        return payload
+
+    def test_create_rejects_invalid_domain_values_with_friendly_messages(self):
+        cases = [
+            (
+                {"amount": "0"},
+                "O valor da transação deve ser maior que zero.",
+            ),
+            (
+                {"amount": "-10.00"},
+                "O valor da transação deve ser maior que zero.",
+            ),
+            (
+                {"description": "   "},
+                "Informe uma descrição para a transação.",
+            ),
+            (
+                {"description": "a" * 256},
+                "A descrição deve ter no máximo 255 caracteres.",
+            ),
+            (
+                {"category": "crypto"},
+                "Escolha uma categoria válida.",
+            ),
+            (
+                {"date": "2026-31-99"},
+                "Informe uma data válida.",
+            ),
+        ]
+
+        for overrides, message in cases:
+            with self.subTest(overrides=overrides):
+                response = self.client.post(
+                    "/api/transactions/",
+                    self.base_transaction_payload(**overrides),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 422)
+                self.assertEqual(response.json()["message"], message)
+
+    def test_create_rejects_category_that_does_not_match_transaction_type(self):
+        response = self.client.post(
+            "/api/transactions/",
+            self.base_transaction_payload(category="salary", type="expense"),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["message"],
+            "A categoria escolhida não combina com o tipo da transação.",
+        )
+
     def test_sync_applies_mutations_in_order_and_is_idempotent(self):
         payload = {
             "operations": [
@@ -134,5 +198,15 @@ class TransactionSyncAPITests(TestCase):
         self.assertEqual(result["status"], "failed")
         self.assertEqual(
             result["message"],
-            "Transaction payload is required for add/update operations.",
+            "Informe os dados da transação para adicionar ou atualizar.",
         )
+
+    def test_delete_transaction_is_idempotent(self):
+        response = self.client.delete("/api/transactions/mns1x8g8pl6acfc")
+
+        self.assertEqual(response.status_code, 204)
+
+    def test_delete_transaction_accepts_trailing_slash(self):
+        response = self.client.delete("/api/transactions/mns1c8pg02cd630/")
+
+        self.assertEqual(response.status_code, 204)

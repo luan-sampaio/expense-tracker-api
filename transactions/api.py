@@ -22,7 +22,7 @@ def list_transactions(request):
 @router.post("/", response={201: TransactionOut, 409: ErrorOut})
 def create_transaction(request, payload: TransactionIn):
     if Transaction.objects.filter(id=payload.id).exists():
-        return 409, {"message": "Transaction with this id already exists."}
+        return 409, {"message": "Já existe uma transação com este identificador."}
 
     transaction = Transaction.objects.create(
         id=payload.id,
@@ -56,7 +56,7 @@ def sync_transactions(request, payload: TransactionSyncIn):
             if operation.operation in {"add", "update"}:
                 if operation.transaction is None:
                     result["status"] = "failed"
-                    result["message"] = "Transaction payload is required for add/update operations."
+                    result["message"] = "Informe os dados da transação para adicionar ou atualizar."
                     results.append(result)
                     continue
 
@@ -69,7 +69,7 @@ def sync_transactions(request, payload: TransactionSyncIn):
             if operation.operation == "remove":
                 if not transaction_id:
                     result["status"] = "failed"
-                    result["message"] = "transaction_id is required for remove operations."
+                    result["message"] = "Informe o identificador da transação para remover."
                     results.append(result)
                     continue
 
@@ -93,7 +93,7 @@ def update_transaction(request, transaction_id: str, payload: TransactionIn):
 
 
 @router.delete("/{transaction_id}", response={204: None})
+@router.delete("/{transaction_id}/", response={204: None}, include_in_schema=False)
 def delete_transaction(request, transaction_id: str):
-    transaction = get_object_or_404(Transaction, id=transaction_id)
-    transaction.delete()
+    Transaction.objects.filter(id=transaction_id).delete()
     return 204, None
