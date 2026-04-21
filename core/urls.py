@@ -30,6 +30,17 @@ TYPE_MESSAGES = {
 }
 
 
+def get_validation_field(error, message):
+    field = error.get("loc", [""])[-1]
+    if field in FIELD_MESSAGES:
+        return field
+
+    if "categoria" in message:
+        return "category"
+
+    return "non_field_errors"
+
+
 def get_validation_message(error):
     field = error.get("loc", [""])[-1]
     if error.get("type") in {"missing", "string_type"}:
@@ -50,23 +61,16 @@ def get_validation_message(error):
 
 @api.exception_handler(ValidationError)
 def validation_errors(request, exc):
-    errors = [
-        {
-            "field": error.get("loc", [""])[-1],
-            "message": get_validation_message(error),
-        }
-        for error in exc.errors
-    ]
-    message = (
-        errors[0]["message"]
-        if len(errors) == 1
-        else "Alguns campos precisam ser corrigidos."
-    )
+    fields = {}
+    for error in exc.errors:
+        field_message = get_validation_message(error)
+        fields[get_validation_field(error, field_message)] = field_message
+
     return api.create_response(
         request,
         {
-            "message": message,
-            "errors": errors,
+            "message": "Revise os campos destacados.",
+            "fields": fields,
         },
         status=422,
     )

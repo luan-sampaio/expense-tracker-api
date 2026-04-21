@@ -25,31 +25,37 @@ class TransactionSyncAPITests(TestCase):
         cases = [
             (
                 {"amount": "0"},
+                "amount",
                 "O valor da transação deve ser maior que zero.",
             ),
             (
                 {"amount": "-10.00"},
+                "amount",
                 "O valor da transação deve ser maior que zero.",
             ),
             (
                 {"description": "   "},
+                "description",
                 "Informe uma descrição para a transação.",
             ),
             (
                 {"description": "a" * 256},
+                "description",
                 "A descrição deve ter no máximo 255 caracteres.",
             ),
             (
                 {"category": "crypto"},
+                "category",
                 "Escolha uma categoria válida.",
             ),
             (
                 {"date": "2026-31-99"},
+                "date",
                 "Informe uma data válida.",
             ),
         ]
 
-        for overrides, message in cases:
+        for overrides, field, message in cases:
             with self.subTest(overrides=overrides):
                 response = self.client.post(
                     "/api/transactions/",
@@ -58,7 +64,8 @@ class TransactionSyncAPITests(TestCase):
                 )
 
                 self.assertEqual(response.status_code, 422)
-                self.assertEqual(response.json()["message"], message)
+                self.assertEqual(response.json()["message"], "Revise os campos destacados.")
+                self.assertEqual(response.json()["fields"][field], message)
 
     def test_create_rejects_category_that_does_not_match_transaction_type(self):
         response = self.client.post(
@@ -68,9 +75,33 @@ class TransactionSyncAPITests(TestCase):
         )
 
         self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.json()["message"], "Revise os campos destacados.")
         self.assertEqual(
-            response.json()["message"],
+            response.json()["fields"]["category"],
             "A categoria escolhida não combina com o tipo da transação.",
+        )
+
+    def test_create_returns_standard_error_shape_for_duplicate_id(self):
+        Transaction.objects.create(
+            id="txn_validation",
+            amount=Decimal("10.00"),
+            date="2026-04-11T09:00:00Z",
+            category="food",
+            type=Transaction.Type.EXPENSE,
+            description="Cafe",
+        )
+
+        response = self.client.post(
+            "/api/transactions/",
+            self.base_transaction_payload(),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertEqual(response.json()["message"], "Não foi possível salvar a transação.")
+        self.assertEqual(
+            response.json()["fields"]["id"],
+            "Já existe uma transação com este identificador.",
         )
 
     def test_sync_applies_mutations_in_order_and_is_idempotent(self):

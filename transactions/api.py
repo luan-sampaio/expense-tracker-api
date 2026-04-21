@@ -22,7 +22,10 @@ def list_transactions(request):
 @router.post("/", response={201: TransactionOut, 409: ErrorOut})
 def create_transaction(request, payload: TransactionIn):
     if Transaction.objects.filter(id=payload.id).exists():
-        return 409, {"message": "Já existe uma transação com este identificador."}
+        return 409, {
+            "message": "Não foi possível salvar a transação.",
+            "fields": {"id": "Já existe uma transação com este identificador."},
+        }
 
     transaction = Transaction.objects.create(
         id=payload.id,

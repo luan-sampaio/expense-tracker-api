@@ -89,6 +89,7 @@ class TransactionOut(TransactionBase):
 
 class ErrorOut(Schema):
     message: str
+    fields: dict[str, str] = {}
 
 
 class TransactionSyncOperationIn(Schema):
