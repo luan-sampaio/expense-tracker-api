@@ -6,7 +6,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from pydantic import ValidationError as PydanticValidationError
 
-from .models import SyncOperationLog, Transaction
+from .models import FinancialGoal, SyncOperationLog, Transaction
 from .schemas import TransactionIn
 from .validation import validation_fields_from_errors
 
@@ -18,6 +18,14 @@ class TransactionConflictError(Exception):
         super().__init__(message)
 
 
+def transaction_values_from_payload(payload, exclude=None):
+    values = payload.model_dump(exclude=exclude or set())
+    values["financial_nature"] = values.pop("financialNature")
+    values["budget_group_id"] = values.pop("budgetGroupId")
+    values["goal_id"] = values.pop("goalId")
+    return values
+
+
 def create_transaction(payload):
     if Transaction.objects.filter(id=payload.id).exists():
         raise TransactionConflictError(
@@ -27,17 +35,13 @@ def create_transaction(payload):
 
     return Transaction.objects.create(
         id=payload.id,
-        amount=payload.amount,
-        date=payload.date,
-        category=payload.category,
-        type=payload.type,
-        description=payload.description,
+        **transaction_values_from_payload(payload, exclude={"id"}),
     )
 
 
 def update_transaction(transaction_id, payload):
     transaction = get_object_or_404(Transaction, id=transaction_id)
-    for field, value in payload.model_dump(exclude={"id"}).items():
+    for field, value in transaction_values_from_payload(payload, exclude={"id"}).items():
         setattr(transaction, field, value)
     transaction.save()
     return transaction
@@ -171,7 +175,10 @@ def sync_transactions(payload):
 
                 transaction_id = transaction_payload.id
                 result["transaction_id"] = transaction_id
-                values = transaction_payload.model_dump(exclude={"id"})
+                values = transaction_values_from_payload(
+                    transaction_payload,
+                    exclude={"id"},
+                )
                 Transaction.objects.update_or_create(
                     id=transaction_payload.id,
                     defaults=values,
@@ -198,3 +205,54 @@ def sync_transactions(payload):
         "transactions": Transaction.objects.all(),
         "server_synced_at": server_synced_at,
     }
+
+
+def financial_goal_values_from_payload(payload, exclude=None, exclude_none=False):
+    values = payload.model_dump(exclude=exclude or set(), exclude_none=exclude_none)
+    if "targetAmount" in values:
+        values["target_amount"] = values.pop("targetAmount")
+    if "createdAt" in values:
+        values["created_at"] = values.pop("createdAt")
+    if "isArchived" in values:
+        values["is_archived"] = values.pop("isArchived")
+
+    if values.get("created_at") is None:
+        values.pop("created_at", None)
+
+    return values
+
+
+def list_financial_goals():
+    return FinancialGoal.objects.all()
+
+
+def create_financial_goal(payload):
+    if FinancialGoal.objects.filter(id=payload.id).exists():
+        raise TransactionConflictError(
+            "Não foi possível salvar a meta financeira.",
+            {"id": "Já existe uma meta financeira com este identificador."},
+        )
+
+    return FinancialGoal.objects.create(
+        id=payload.id,
+        **financial_goal_values_from_payload(
+            payload,
+            exclude={"id"},
+            exclude_none=True,
+        ),
+    )
+
+
+def update_financial_goal(goal_id, payload):
+    goal = get_object_or_404(FinancialGoal, id=goal_id)
+    for field, value in financial_goal_values_from_payload(
+        payload,
+        exclude_none=True,
+    ).items():
+        setattr(goal, field, value)
+    goal.save()
+    return goal
+
+
+def delete_financial_goal(goal_id):
+    FinancialGoal.objects.filter(id=goal_id).delete()

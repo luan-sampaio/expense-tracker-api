@@ -41,6 +41,26 @@ class TransactionBase(Schema):
     category: str
     type: Literal["income", "expense"]
     description: str
+    financialNature: Literal["spending", "saving", "investment"] = "spending"
+    budgetGroupId: str | None = None
+    goalId: str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_financial_field_names(cls, data):
+        if not isinstance(data, dict):
+            return data
+
+        data = data.copy()
+        aliases = {
+            "financial_nature": "financialNature",
+            "budget_group_id": "budgetGroupId",
+            "goal_id": "goalId",
+        }
+        for snake_case, camel_case in aliases.items():
+            if snake_case in data and camel_case not in data:
+                data[camel_case] = data[snake_case]
+        return data
 
     @field_validator("amount")
     @classmethod
@@ -71,11 +91,35 @@ class TransactionBase(Schema):
             )
         return description
 
+    @field_validator("budgetGroupId", "goalId")
+    @classmethod
+    def validate_optional_identifier(cls, value):
+        if value is None:
+            return value
+
+        value = value.strip()
+        return value or None
+
     @model_validator(mode="after")
-    def validate_category_matches_type(self):
+    def validate_transaction_semantics(self):
         categories = ACCEPTED_CATEGORIES_BY_TYPE.get(self.type, set())
         if self.category not in categories:
             raise ValueError("A categoria escolhida não combina com o tipo da transação.")
+
+        if self.type != "expense" and self.financialNature != "spending":
+            raise ValueError("A natureza financeira só pode ser aplicada em despesas.")
+
+        if self.financialNature == "spending" and self.goalId is not None:
+            raise ValueError("Gastos comuns não devem estar vinculados a metas.")
+
+        if self.financialNature in {"saving", "investment"}:
+            if self.goalId is None:
+                raise ValueError("Informe a meta financeira vinculada ao aporte.")
+            if self.budgetGroupId is not None:
+                raise ValueError(
+                    "Aportes financeiros não devem estar vinculados ao orçamento."
+                )
+
         return self
 
 
@@ -206,3 +250,70 @@ class TransactionSyncOut(Schema):
     results: list[TransactionSyncOperationOut]
     transactions: list[TransactionOut]
     server_synced_at: datetime
+
+
+class FinancialGoalBase(Schema):
+    name: str
+    targetAmount: Decimal
+    createdAt: datetime | None = None
+    isArchived: bool = False
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, name):
+        name = name.strip()
+        if not name:
+            raise ValueError("Informe o nome da meta financeira.")
+        if len(name) > MAX_DESCRIPTION_LENGTH:
+            raise ValueError(
+                f"O nome deve ter no máximo {MAX_DESCRIPTION_LENGTH} caracteres."
+            )
+        return name
+
+    @field_validator("targetAmount")
+    @classmethod
+    def validate_target_amount(cls, target_amount):
+        if target_amount <= Decimal("0"):
+            raise ValueError("O valor da meta deve ser maior que zero.")
+        return target_amount
+
+
+class FinancialGoalIn(FinancialGoalBase):
+    id: str
+
+
+class FinancialGoalUpdateIn(Schema):
+    name: str | None = None
+    targetAmount: Decimal | None = None
+    createdAt: datetime | None = None
+    isArchived: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def validate_name(cls, name):
+        if name is None:
+            return name
+
+        name = name.strip()
+        if not name:
+            raise ValueError("Informe o nome da meta financeira.")
+        if len(name) > MAX_DESCRIPTION_LENGTH:
+            raise ValueError(
+                f"O nome deve ter no máximo {MAX_DESCRIPTION_LENGTH} caracteres."
+            )
+        return name
+
+    @field_validator("targetAmount")
+    @classmethod
+    def validate_target_amount(cls, target_amount):
+        if target_amount is None:
+            return target_amount
+
+        if target_amount <= Decimal("0"):
+            raise ValueError("O valor da meta deve ser maior que zero.")
+        return target_amount
+
+
+class FinancialGoalOut(FinancialGoalBase):
+    id: str
+    createdAt: datetime

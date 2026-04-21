@@ -3,6 +3,13 @@ FIELD_MESSAGES = {
     "category": "Escolha uma categoria para a transação.",
     "date": "Informe uma data válida.",
     "description": "Informe uma descrição para a transação.",
+    "financialNature": "Escolha a natureza financeira da transação.",
+    "budgetGroupId": "Informe o grupo de orçamento.",
+    "goalId": "Informe a meta financeira.",
+    "name": "Informe o nome da meta financeira.",
+    "targetAmount": "Informe o valor da meta.",
+    "createdAt": "Informe a data de criação da meta.",
+    "isArchived": "Informe se a meta está arquivada.",
     "id": "Informe o identificador da transação.",
     "limit": "Informe um limite válido.",
     "offset": "Informe um offset válido.",
@@ -22,8 +29,13 @@ TYPE_MESSAGES = {
 }
 
 
+def get_error_field(error):
+    location = error.get("loc") or [""]
+    return location[-1] if location else ""
+
+
 def get_validation_message(error):
-    field = error.get("loc", [""])[-1]
+    field = get_error_field(error)
     if error.get("type") in {"missing", "string_type"}:
         return FIELD_MESSAGES.get(field, "Preencha este campo.")
 
@@ -41,7 +53,7 @@ def get_validation_message(error):
 
 
 def get_validation_field(error, message):
-    field = error.get("loc", [""])[-1]
+    field = get_error_field(error)
     if field in FIELD_MESSAGES:
         return field
 

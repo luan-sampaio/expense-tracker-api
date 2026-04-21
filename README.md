@@ -89,16 +89,20 @@ pip install -r requirements.txt
 Crie um arquivo `.env` na raiz do projeto:
 
 ```env
-SECRET_KEY=sua-chave-segura
+ENVIRONMENT=development
 DEBUG=True
-ALLOWED_HOSTS=127.0.0.1,localhost
+SECRET_KEY=sua-chave-segura
+
+# Em desenvolvimento com Expo/dispositivo fisico, "*" permite acesso pelo IP local
+ALLOWED_HOSTS=*
 
 # Em desenvolvimento, pode omitir DATABASE_URL para usar SQLite
 # DATABASE_URL=postgresql://usuario:senha@localhost:5432/expense_tracker
 
-# Em producao, informe explicitamente as origens permitidas
-# Exemplo para Expo Web ou frontend hospedado
+# Em desenvolvimento, pode manter CORS aberto para Expo Web e IP local
+CORS_ALLOW_ALL_ORIGINS=True
 CORS_ALLOWED_ORIGINS=http://localhost:8081,http://127.0.0.1:8081
+CORS_ALLOWED_ORIGIN_REGEXES=^http://192\\.168\\.\\d{1,3}\\.\\d{1,3}:8081$,^http://10\\.0\\.2\\.2:8081$
 ```
 
 ### 5. Rode as migracoes
@@ -134,6 +138,7 @@ O app React Native usa esta API como backend de sincronizacao. A estrategia espe
 - ao criar uma transacao, envia os dados para `POST /api/transactions/`;
 - ao editar uma transacao existente, usa `PUT /api/transactions/{id}`;
 - ao excluir, usa `DELETE /api/transactions/{id}`.
+- quando estiver offline ou o backend falhar, guarda as mutacoes locais em uma fila e reenvia com `POST /api/transactions/sync` quando a conexao voltar.
 
 Para desenvolvimento com Expo:
 
@@ -231,6 +236,78 @@ Resposta:
 
 - `204 No Content`
 
+#### `POST /transactions/sync`
+
+Aplica uma fila de mutacoes offline em lote. Este endpoint foi desenhado para retry: `add` e `update` funcionam como upsert pelo `id` da transacao, e `remove` e considerado aplicado mesmo quando a transacao ja foi removida.
+
+Payload:
+
+```json
+{
+  "operations": [
+    {
+      "client_operation_id": "op_001",
+      "operation": "add",
+      "transaction": {
+        "id": "txn_001",
+        "amount": "2500.00",
+        "date": "2026-04-09T09:00:00Z",
+        "category": "salary",
+        "type": "income",
+        "description": "Salario"
+      }
+    },
+    {
+      "client_operation_id": "op_002",
+      "operation": "remove",
+      "transaction_id": "txn_002"
+    }
+  ]
+}
+```
+
+Resposta:
+
+```json
+{
+  "results": [
+    {
+      "operation": "add",
+      "transaction_id": "txn_001",
+      "client_operation_id": "op_001",
+      "status": "applied",
+      "message": ""
+    },
+    {
+      "operation": "remove",
+      "transaction_id": "txn_002",
+      "client_operation_id": "op_002",
+      "status": "applied",
+      "message": ""
+    }
+  ],
+  "transactions": [
+    {
+      "id": "txn_001",
+      "amount": "2500.00",
+      "date": "2026-04-09T09:00:00Z",
+      "category": "salary",
+      "type": "income",
+      "description": "Salario",
+      "created_at": "2026-04-09T09:00:00Z",
+      "updated_at": "2026-04-09T09:00:00Z"
+    }
+  ]
+}
+```
+
+Observacoes:
+
+- `operation` aceita `add`, `update` ou `remove`;
+- `add` e `update` exigem `transaction`;
+- `remove` aceita `transaction_id` ou o `id` dentro de `transaction`;
+- `client_operation_id` e opcional e serve para o app correlacionar a resposta com a fila local.
+
 ## 🧾 Modelo de Dados
 
 Cada transacao possui os seguintes campos:
@@ -248,16 +325,36 @@ Cada transacao possui os seguintes campos:
 
 Variaveis suportadas atualmente:
 
+- `ENVIRONMENT`: `development` ou `production`
 - `SECRET_KEY`: chave secreta do Django
-- `DEBUG`: habilita modo de desenvolvimento
+- `DEBUG`: habilita modo de desenvolvimento; em producao deve ser `False`
 - `ALLOWED_HOSTS`: lista de hosts permitidos, separados por virgula
 - `DATABASE_URL`: URL de conexao com o banco; se ausente, usa SQLite
+- `DB_CONN_MAX_AGE`: tempo de reuso de conexao do banco, em segundos
+- `DB_SSL_REQUIRE`: exige SSL na conexao do banco quando suportado
+- `CORS_ALLOW_ALL_ORIGINS`: libera todas as origens quando `True`
 - `CORS_ALLOWED_ORIGINS`: origens permitidas para CORS, separadas por virgula
+- `CORS_ALLOWED_ORIGIN_REGEXES`: regexes de origens permitidas, separadas por virgula
 
-Comportamento atual de CORS:
+Comportamento por ambiente:
 
-- em desenvolvimento, `DEBUG=True` permite todas as origens;
-- em producao, use `CORS_ALLOWED_ORIGINS` para liberar explicitamente o frontend.
+- em `development`, o projeto usa `ALLOWED_HOSTS=*` e `CORS_ALLOW_ALL_ORIGINS=True` por padrao, facilitando Expo em emulador e dispositivo fisico;
+- em `production`, `DEBUG` precisa ser `False`, `ALLOWED_HOSTS` deve ser explicito e `CORS_ALLOW_ALL_ORIGINS` precisa ser `False`;
+- em producao, use `CORS_ALLOWED_ORIGINS` para liberar o dominio real do frontend.
+
+Exemplo de producao:
+
+```env
+ENVIRONMENT=production
+DEBUG=False
+SECRET_KEY=sua-chave-longa-e-segura
+ALLOWED_HOSTS=api.seudominio.com
+DATABASE_URL=postgresql://usuario:senha@host:5432/expense_tracker
+DB_CONN_MAX_AGE=600
+DB_SSL_REQUIRE=True
+CORS_ALLOW_ALL_ORIGINS=False
+CORS_ALLOWED_ORIGINS=https://app.seudominio.com
+```
 
 ## 🧪 Comandos uteis
 
