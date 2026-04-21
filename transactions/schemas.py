@@ -19,6 +19,7 @@ EXPENSE_CATEGORIES = {
     "education",
     "shopping",
     "bills",
+    "investments",
     "other",
 }
 INCOME_CATEGORIES = {

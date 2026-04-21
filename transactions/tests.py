@@ -121,6 +121,37 @@ class TransactionSyncAPITests(TestCase):
         self.assertEqual(returned_transaction["goalId"], "goal-123")
         self.assertIsNone(returned_transaction["budgetGroupId"])
 
+    def test_sync_accepts_investments_as_expense_contribution_category(self):
+        response = self.client.post(
+            "/api/transactions/sync",
+            {
+                "operations": [
+                    {
+                        "operation": "add",
+                        "transaction": {
+                            "id": "txn_investments",
+                            "amount": "500.00",
+                            "date": "2026-04-21T00:00:00Z",
+                            "category": "investments",
+                            "type": "expense",
+                            "description": "Aporte em investimentos",
+                            "financialNature": "investment",
+                            "goalId": "goal-123",
+                        },
+                    }
+                ]
+            },
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        result = response.json()["results"][0]
+        self.assertEqual(result["status"], "applied")
+        transaction = Transaction.objects.get(id="txn_investments")
+        self.assertEqual(transaction.category, "investments")
+        self.assertEqual(transaction.type, Transaction.Type.EXPENSE)
+        self.assertEqual(transaction.financial_nature, "investment")
+
     def test_list_returns_financial_classification_fields(self):
         Transaction.objects.create(
             id="txn_budget",
