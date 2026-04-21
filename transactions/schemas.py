@@ -98,13 +98,8 @@ class TransactionListOut(Schema):
     results: list[TransactionOut]
 
 
-class TransactionFilters(Schema):
+class MonthFilter(Schema):
     month: str | None = None
-    type: Literal["income", "expense"] | None = None
-    category: str | None = None
-    search: str | None = None
-    limit: int = DEFAULT_PAGE_LIMIT
-    offset: int = 0
 
     @field_validator("month")
     @classmethod
@@ -118,6 +113,14 @@ class TransactionFilters(Schema):
         except ValueError:
             raise ValueError("Informe o mês no formato AAAA-MM.")
         return month
+
+
+class TransactionFilters(MonthFilter):
+    type: Literal["income", "expense"] | None = None
+    category: str | None = None
+    search: str | None = None
+    limit: int = DEFAULT_PAGE_LIMIT
+    offset: int = 0
 
     @field_validator("category")
     @classmethod
@@ -156,6 +159,21 @@ class TransactionFilters(Schema):
         if offset < 0:
             raise ValueError("O offset não pode ser negativo.")
         return offset
+
+
+class TopCategoryOut(Schema):
+    category: str
+    total: Decimal
+    count: int
+
+
+class TransactionSummaryOut(Schema):
+    balance: Decimal
+    income: Decimal
+    expense: Decimal
+    biggest_expense: TransactionOut | None = None
+    top_category: TopCategoryOut | None = None
+    previous_month_comparison: Decimal | None = None
 
 
 class ErrorOut(Schema):
